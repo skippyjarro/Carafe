@@ -10,6 +10,13 @@ WINE_SHA="203f9e9fd6c2cc77e6525d798a434ced326145db34a356355e05659d3445fd1c"
 SUPPORT_URL="https://github.com/Sikarugir-App/Template/releases/download/v1.0/Template-1.0.21.tar.xz"
 SUPPORT_SHA="bbe996e4e4375318485953d0c7818b7b4b0a4dc1f13303bcc584f99f7602f78d"
 
+# Replacing the engine while its programs are running would pull it out from under them.
+if pgrep -f "$DEST/wine/" >/dev/null; then
+  echo "Error: Windows programs are still running on this engine." >&2
+  echo "Use Quit All Programs in each bottle (or quit the programs), then install again." >&2
+  exit 1
+fi
+
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 

@@ -132,4 +132,33 @@ final class CarafeCoreTests: XCTestCase {
         try touch("Program Files/Game/a/b/c/d/deep.exe")
         XCTAssertEqual(ProgramScanner.scan(driveC: temp).map(\.name), ["game", "tool"])
     }
+
+    func testLogsRotateAndOrphansAreRemoved() throws {
+        let logs = temp.appendingPathComponent("Logs")
+        let bottles = temp.appendingPathComponent("Bottles")
+        let kept = UUID(), gone = UUID()
+        try FileManager.default.createDirectory(at: logs, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: bottles.appendingPathComponent(kept.uuidString), withIntermediateDirectories: true)
+
+        let log = BottleLogs.file(for: kept, in: logs)
+        try Data(count: 100).write(to: log)
+        BottleLogs.rotateIfNeeded(log, limit: 200)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: log.path), "small logs stay put")
+        BottleLogs.rotateIfNeeded(log, limit: 50)
+        try Data(count: 60).write(to: log)
+        BottleLogs.rotateIfNeeded(log, limit: 50)  // replaces the previous .old.log
+
+        try Data().write(to: BottleLogs.file(for: gone, in: logs))
+        try Data().write(to: BottleLogs.rotated(BottleLogs.file(for: gone, in: logs)))
+        try Data().write(to: logs.appendingPathComponent("notes.log"))
+        BottleLogs.removeOrphans(bottles: bottles, in: logs)
+
+        XCTAssertEqual(
+            Set(try FileManager.default.contentsOfDirectory(atPath: logs.path)),
+            ["\(kept.uuidString).old.log", "notes.log"])
+
+        BottleLogs.remove(for: kept, in: logs)
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: logs.path), ["notes.log"])
+    }
 }

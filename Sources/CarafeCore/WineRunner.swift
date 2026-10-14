@@ -50,7 +50,7 @@ public struct WineRunner: Sendable {
     }
 
     public func logFile(for bottle: Bottle) -> URL {
-        AppPaths.logs.appendingPathComponent("\(bottle.id.uuidString).log")
+        BottleLogs.file(for: bottle.id)
     }
 
     /// Arguments that open any Windows file (.exe, .msi, .bat, .lnk) given its macOS path.
@@ -66,6 +66,7 @@ public struct WineRunner: Sendable {
 
         let log = logFile(for: bottle)
         try fm.createDirectory(at: log.deletingLastPathComponent(), withIntermediateDirectories: true)
+        BottleLogs.rotateIfNeeded(log)
         if !fm.fileExists(atPath: log.path) { fm.createFile(atPath: log.path, contents: nil) }
         let handle = try FileHandle(forWritingTo: log)
         try handle.seekToEnd()

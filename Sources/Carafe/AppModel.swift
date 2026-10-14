@@ -34,6 +34,7 @@ final class AppModel {
     init() {
         reload()
         selection = bottles.first?.id
+        BottleLogs.removeOrphans(bottles: repository.root)
     }
 
     var selectedBottle: Bottle? { bottles.first { $0.id == selection } }
@@ -100,6 +101,7 @@ final class AppModel {
         }
         do {
             try FileManager.default.trashItem(at: repository.prefix(for: bottle), resultingItemURL: nil)
+            BottleLogs.remove(for: bottle.id)
             bottles.removeAll { $0.id == bottle.id }
             if selection == bottle.id { selection = bottles.first?.id }
         } catch {
