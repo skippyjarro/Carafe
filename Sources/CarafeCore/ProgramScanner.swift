@@ -3,6 +3,8 @@ import Foundation
 public struct Program: Identifiable, Hashable, Sendable {
     public let name: String
     public let url: URL
+    /// Added to the list by the user rather than found by scanning.
+    public var isPinned = false
 
     public var id: URL { url }
 }
@@ -19,7 +21,19 @@ public enum ProgramScanner {
         return !noise.contains { name.contains($0) }
     }
 
-    public static func scan(driveC: URL) -> [Program] {
+    /// Resolves a pinned program's stored path, or nil if `file` isn't inside the C: drive.
+    public static func relativePath(of file: URL, in driveC: URL) -> String? {
+        let root = driveC.standardizedFileURL.path + "/"
+        let path = file.standardizedFileURL.path
+        return path.hasPrefix(root) ? String(path.dropFirst(root.count)) : nil
+    }
+
+    public static func scan(driveC: URL, pinned: [String] = []) -> [Program] {
+        let pins = pinned
+            .map { driveC.appendingPathComponent($0) }
+            .filter { FileManager.default.fileExists(atPath: $0.path) }
+            .map { Program(name: $0.deletingPathExtension().lastPathComponent, url: $0, isPinned: true) }
+
         let shortcuts = startMenuRoots(driveC: driveC).flatMap { files(in: $0, withExtension: "lnk", maxDepth: 6) }
         // Start Menu shortcuts are what installers consider "the app"; raw .exe scanning is the fallback.
         let found = shortcuts.isEmpty
@@ -28,10 +42,12 @@ public enum ProgramScanner {
             }
             : shortcuts
 
+        // Pins come first so they win over a scanned program of the same name.
         var seen = Set<String>()
-        return found
+        let scanned = found
             .filter(isLaunchable)
             .map { Program(name: $0.deletingPathExtension().lastPathComponent, url: $0) }
+        return (pins + scanned)
             .filter { seen.insert($0.name.lowercased()).inserted }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }

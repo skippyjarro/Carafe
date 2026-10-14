@@ -31,14 +31,42 @@ public enum SyncMode: String, Codable, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// What translates a program's DirectX calls into something macOS can draw.
+public enum GraphicsBackend: String, Codable, CaseIterable, Identifiable, Sendable {
+    case d3dMetal, dxmt, dxvk, wined3d
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .d3dMetal: "D3DMetal (DirectX 11–12)"
+        case .dxmt: "DXMT (DirectX 10–11)"
+        case .dxvk: "DXVK (DirectX 9–11)"
+        case .wined3d: "Wine Built-in"
+        }
+    }
+}
+
 public struct BottleSettings: Codable, Hashable, Sendable {
     public var syncMode: SyncMode = .msync
+    public var graphics: GraphicsBackend = .d3dMetal
     public var metalHUD = false
     public var advertiseAVX = false
     public var retinaMode = false
     public var extraEnvironment: [String: String] = [:]
 
     public init() {}
+
+    /// Every key is optional so bottles saved by older versions of Carafe keep loading as settings are added.
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        syncMode = try values.decodeIfPresent(SyncMode.self, forKey: .syncMode) ?? syncMode
+        graphics = try values.decodeIfPresent(GraphicsBackend.self, forKey: .graphics) ?? graphics
+        metalHUD = try values.decodeIfPresent(Bool.self, forKey: .metalHUD) ?? metalHUD
+        advertiseAVX = try values.decodeIfPresent(Bool.self, forKey: .advertiseAVX) ?? advertiseAVX
+        retinaMode = try values.decodeIfPresent(Bool.self, forKey: .retinaMode) ?? retinaMode
+        extraEnvironment = try values.decodeIfPresent([String: String].self, forKey: .extraEnvironment) ?? extraEnvironment
+    }
 }
 
 /// A bottle is one isolated Windows install: its own C: drive, registry and settings.
@@ -51,6 +79,8 @@ public struct Bottle: Codable, Identifiable, Hashable, Sendable {
     public var created: Date
     /// Name of the Wine engine this bottle was created with. Bottles can't move to an older Wine.
     public var engineName: String?
+    /// Programs the user added to the list by hand, as paths relative to the C: drive.
+    public var pinnedPrograms: [String]?
 
     public init(
         id: UUID = UUID(),
@@ -58,7 +88,8 @@ public struct Bottle: Codable, Identifiable, Hashable, Sendable {
         windowsVersion: WindowsVersion = .win10,
         settings: BottleSettings = BottleSettings(),
         created: Date = Date(),
-        engineName: String? = nil
+        engineName: String? = nil,
+        pinnedPrograms: [String]? = nil
     ) {
         self.id = id
         self.name = name
@@ -66,5 +97,6 @@ public struct Bottle: Codable, Identifiable, Hashable, Sendable {
         self.settings = settings
         self.created = created
         self.engineName = engineName
+        self.pinnedPrograms = pinnedPrograms
     }
 }

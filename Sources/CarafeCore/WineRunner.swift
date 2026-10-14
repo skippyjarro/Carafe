@@ -16,10 +16,14 @@ public enum WineEnvironment {
         if let support = engine.support {
             // Gaming engines load their unix libraries (FreeType, GnuTLS, MoltenVK, D3DMetal) by bare name.
             var libraries = [support.path]
-            if let d3dMetal = engine.d3dMetal {
+            let graphics = bottle.settings.graphics
+            // The chosen layer's DirectX libraries are searched ahead of Wine's own.
+            if let renderer = engine.renderer(graphics) {
+                env["WINEDLLPATH_PREPEND"] = renderer.path
+            }
+            if graphics == .d3dMetal, let d3dMetal = engine.d3dMetal {
                 let external = d3dMetal.appendingPathComponent("external")
                 libraries.append(external.path)
-                env["WINEDLLPATH_PREPEND"] = d3dMetal.appendingPathComponent("wine").path
                 // CrossOver's loader only enables its D3DMetal support when told where this library is.
                 env["CX_APPLEGPTK_LIBD3DSHARED_PATH"] = external.appendingPathComponent("libd3dshared.dylib").path
             }

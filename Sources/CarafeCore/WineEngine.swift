@@ -32,6 +32,26 @@ public struct WineEngine: Hashable, Sendable {
         else { return nil }
         return dir
     }
+
+    /// Folder of replacement DirectX libraries for a graphics layer, or nil if this engine doesn't ship it.
+    public func renderer(_ backend: GraphicsBackend) -> URL? {
+        switch backend {
+        case .d3dMetal:
+            return d3dMetal?.appendingPathComponent("wine")
+        case .dxmt, .dxvk:
+            guard let dir = support?.appendingPathComponent("renderer/\(backend.rawValue)/wine"),
+                  FileManager.default.fileExists(atPath: dir.path)
+            else { return nil }
+            return dir
+        case .wined3d:
+            return nil
+        }
+    }
+
+    /// The graphics layers a bottle on this engine can choose from. Wine's own is always there.
+    public var graphicsBackends: [GraphicsBackend] {
+        GraphicsBackend.allCases.filter { $0 == .wined3d || renderer($0) != nil }
+    }
 }
 
 public struct EngineCandidate {

@@ -25,6 +25,8 @@ final class AppModel {
     var bottles: [Bottle] = []
     var selection: Bottle.ID?
     var busy: Set<Bottle.ID> = []
+    /// Bottles that currently have Windows programs running.
+    var running: Set<Bottle.ID> = []
     var errorMessage: String?
     var installing = false
     var installLog = ""
@@ -35,6 +37,14 @@ final class AppModel {
         reload()
         selection = bottles.first?.id
         BottleLogs.removeOrphans(bottles: repository.root)
+        refreshRunning()
+        // Programs start and quit on their own, so the only way to know is to keep looking.
+        Task { [weak self] in
+            while let self {
+                try? await Task.sleep(for: .seconds(2))
+                self.refreshRunning()
+            }
+        }
     }
 
     var selectedBottle: Bottle? { bottles.first { $0.id == selection } }
@@ -54,7 +64,30 @@ final class AppModel {
     }
 
     func programs(in bottle: Bottle) -> [Program] {
-        ProgramScanner.scan(driveC: repository.driveC(for: bottle))
+        ProgramScanner.scan(driveC: repository.driveC(for: bottle), pinned: bottle.pinnedPrograms ?? [])
+    }
+
+    /// Adds a program inside the bottle's C: drive to its Programs list.
+    func pin(_ file: URL, in bottle: Bottle) {
+        guard let path = ProgramScanner.relativePath(of: file, in: repository.driveC(for: bottle)) else {
+            errorMessage = "Only programs inside this bottle's C: drive can be pinned."
+            return
+        }
+        var copy = bottle
+        copy.pinnedPrograms = (copy.pinnedPrograms ?? []).filter { $0 != path } + [path]
+        update(copy)
+    }
+
+    func unpin(_ program: Program, in bottle: Bottle) {
+        let path = ProgramScanner.relativePath(of: program.url, in: repository.driveC(for: bottle))
+        var copy = bottle
+        copy.pinnedPrograms = copy.pinnedPrograms?.filter { $0 != path }
+        update(copy)
+    }
+
+    private func refreshRunning() {
+        let now = Set(bottles.filter { BottleStatus.isRunning(prefix: repository.prefix(for: $0)) }.map(\.id))
+        if now != running { running = now }
     }
 
     // MARK: Bottles

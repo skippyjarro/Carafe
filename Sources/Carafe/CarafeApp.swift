@@ -28,6 +28,12 @@ struct ContentView: View {
                     Spacer()
                     if model.busy.contains(bottle.id) {
                         ProgressView().controlSize(.small)
+                    } else if model.running.contains(bottle.id) {
+                        Image(systemName: "circle.fill")
+                            .font(.system(size: 8))
+                            .foregroundStyle(.green)
+                            .help("Programs are running in this bottle")
+                            .accessibilityLabel("Running")
                     }
                 }
             }

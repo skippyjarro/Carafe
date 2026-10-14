@@ -9,6 +9,16 @@ struct BottleDetailView: View {
 
     @State private var programs: [Program] = []
     @State private var confirmingDelete = false
+    @State private var newVariableName = ""
+    @State private var newVariableValue = ""
+
+    private var isRunning: Bool { model.running.contains(bottle.id) }
+    private var variables: [(name: String, value: String)] {
+        bottle.settings.extraEnvironment.sorted { $0.key < $1.key }.map { (name: $0.key, value: $0.value) }
+    }
+    private var newVariableIsValid: Bool {
+        !newVariableName.isEmpty && !newVariableName.contains { $0 == "=" || $0.isWhitespace }
+    }
 
     var body: some View {
         Form {
@@ -19,11 +29,23 @@ struct BottleDetailView: View {
                 }
                 ForEach(programs) { program in
                     HStack {
-                        Label(program.name, systemImage: "app")
+                        Label(program.name, systemImage: program.isPinned ? "pin" : "app")
                         Spacer()
+                        if program.isPinned {
+                            Button {
+                                model.unpin(program, in: bottle)
+                            } label: {
+                                Image(systemName: "pin.slash")
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Remove \(program.name) from this list. The program itself stays installed.")
+                            .accessibilityLabel("Unpin \(program.name)")
+                        }
                         Button("Launch") { model.open(program.url, in: bottle) }
                     }
                 }
+                Button("Pin a Program…") { choosePin() }
+                    .help("Add a program from this bottle's C: drive that the list doesn't show on its own")
             }
 
             Section("Tools") {
@@ -36,6 +58,7 @@ struct BottleDetailView: View {
                     Button("Open C: Drive") { model.showDriveC(of: bottle) }
                     Button("Show Log") { model.showLog(of: bottle) }
                     Button("Quit All Programs") { model.killAll(in: bottle) }
+                        .disabled(!isRunning)
                 }
             }
 
@@ -53,6 +76,15 @@ struct BottleDetailView: View {
                     SettingLabel(
                         title: "Sync Mode",
                         info: "How Wine emulates the Windows locks and events that multi-threaded programs rely on. MSync is fastest and ESync is the next best, but each only works if the installed Wine build supports it; otherwise it is ignored. Choose Off if a program hangs or crashes. Applies the next time a program starts.")
+                }
+                Picker(selection: binding(\.settings.graphics)) {
+                    ForEach(model.engine(for: bottle)?.graphicsBackends ?? GraphicsBackend.allCases) {
+                        Text($0.displayName).tag($0)
+                    }
+                } label: {
+                    SettingLabel(
+                        title: "Graphics",
+                        info: "What turns a program's DirectX drawing into something your Mac can display. D3DMetal is Apple's and the one to use for modern DirectX 11 and 12 games. If a game shows a black screen, glitches or won't start, try DXMT (DirectX 10–11) or DXVK (DirectX 9–11, best for older games). Wine Built-in is the slowest but most basic fallback. Applies after Quit All Programs.")
                 }
                 Toggle(isOn: binding(\.settings.retinaMode)) {
                     SettingLabel(
@@ -72,13 +104,47 @@ struct BottleDetailView: View {
             }
 
             Section {
+                ForEach(variables, id: \.name) { variable in
+                    HStack {
+                        Text("\(variable.name)=\(variable.value)")
+                            .font(.body.monospaced())
+                            .textSelection(.enabled)
+                        Spacer()
+                        Button {
+                            var copy = bottle
+                            copy.settings.extraEnvironment[variable.name] = nil
+                            model.update(copy)
+                        } label: {
+                            Image(systemName: "minus.circle")
+                        }
+                        .buttonStyle(.borderless)
+                        .help("Remove \(variable.name)")
+                        .accessibilityLabel("Remove \(variable.name)")
+                    }
+                }
+                HStack {
+                    TextField("Name", text: $newVariableName, prompt: Text("NAME"))
+                    TextField("Value", text: $newVariableValue, prompt: Text("value"))
+                    Button("Add") { addVariable() }
+                        .disabled(!newVariableIsValid)
+                }
+                .labelsHidden()
+                .font(.body.monospaced())
+                .onSubmit { if newVariableIsValid { addVariable() } }
+            } header: {
+                SettingLabel(
+                    title: "Environment Variables",
+                    info: "Extra variables passed to every program in this bottle, for tweaks a guide or a game's support page tells you to set, such as WINEDLLOVERRIDES or DXVK_HUD. They override Carafe's own settings of the same name. Applies the next time a program starts.")
+            }
+
+            Section {
                 Button("Delete Bottle…", role: .destructive) { confirmingDelete = true }
             }
         }
         .formStyle(.grouped)
         .disabled(model.busy.contains(bottle.id))
         .navigationTitle(bottle.name)
-        .navigationSubtitle("\(bottle.windowsVersion.displayName) · \(model.engine(for: bottle)?.name ?? "engine missing")")
+        .navigationSubtitle("\(bottle.windowsVersion.displayName) · \(model.engine(for: bottle)?.name ?? "engine missing")\(isRunning ? " · Running" : "")")
         .toolbar {
             ToolbarItemGroup {
                 Button {
@@ -101,6 +167,7 @@ struct BottleDetailView: View {
         }
         .onAppear(perform: refresh)
         .onChange(of: model.busy) { refresh() }
+        .onChange(of: bottle.pinnedPrograms) { refresh() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             refresh()
         }
@@ -126,6 +193,25 @@ struct BottleDetailView: View {
 
     private func refresh() {
         programs = model.programs(in: bottle)
+    }
+
+    private func addVariable() {
+        var copy = bottle
+        copy.settings.extraEnvironment[newVariableName] = newVariableValue
+        model.update(copy)
+        newVariableName = ""
+        newVariableValue = ""
+    }
+
+    private func choosePin() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = ["exe", "bat", "lnk"].compactMap { UTType(filenameExtension: $0) }
+        panel.directoryURL = model.repository.driveC(for: bottle)
+        panel.message = "Choose a program in “\(bottle.name)” to add to its Programs list"
+        panel.prompt = "Pin"
+        if panel.runModal() == .OK, let url = panel.url {
+            model.pin(url, in: bottle)
+        }
     }
 
     private func chooseFile() {

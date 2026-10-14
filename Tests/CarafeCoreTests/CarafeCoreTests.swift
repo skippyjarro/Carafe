@@ -80,10 +80,57 @@ final class CarafeCoreTests: XCTestCase {
         XCTAssertNil(plain["DYLD_FALLBACK_LIBRARY_PATH"])
     }
 
+    func testGraphicsSettingChoosesTheRenderer() throws {
+        try touch("Frameworks/renderer/d3dmetal/external/D3DMetal.framework/D3DMetal")
+        try touch("Frameworks/renderer/d3dmetal/wine/x86_64-windows/d3d11.dll")
+        try touch("Frameworks/renderer/dxmt/wine/x86_64-windows/d3d11.dll")
+        let support = temp.appendingPathComponent("Frameworks")
+        let gaming = WineEngine(
+            name: "Gaming", binDirectory: URL(fileURLWithPath: "/b/wine/bin"),
+            wine: URL(fileURLWithPath: "/b/wine/bin/wine"), support: support)
+        XCTAssertEqual(gaming.graphicsBackends, [.d3dMetal, .dxmt, .wined3d], "DXVK isn't on disk")
+
+        func env(_ graphics: GraphicsBackend) -> [String: String] {
+            var bottle = Bottle(name: "Games")
+            bottle.settings.graphics = graphics
+            return WineEnvironment.build(bottle: bottle, prefix: URL(fileURLWithPath: "/p"), engine: gaming, base: [:])
+        }
+        XCTAssertEqual(env(.d3dMetal)["WINEDLLPATH_PREPEND"], support.appendingPathComponent("renderer/d3dmetal/wine").path)
+        XCTAssertNotNil(env(.d3dMetal)["CX_APPLEGPTK_LIBD3DSHARED_PATH"])
+        XCTAssertEqual(env(.dxmt)["WINEDLLPATH_PREPEND"], support.appendingPathComponent("renderer/dxmt/wine").path)
+        XCTAssertNil(env(.dxmt)["CX_APPLEGPTK_LIBD3DSHARED_PATH"])
+        XCTAssertNil(env(.dxvk)["WINEDLLPATH_PREPEND"], "a missing layer falls back to Wine's own")
+        XCTAssertNil(env(.wined3d)["WINEDLLPATH_PREPEND"])
+    }
+
+    func testPinnedProgramsJoinTheScan() throws {
+        try touch("ProgramData/Microsoft/Windows/Start Menu/Programs/Steam/Steam.lnk")
+        try touch("Games/Kakarot/AT.exe")
+        let pinned = try XCTUnwrap(ProgramScanner.relativePath(
+            of: temp.appendingPathComponent("Games/Kakarot/AT.exe"), in: temp))
+        XCTAssertEqual(pinned, "Games/Kakarot/AT.exe")
+        XCTAssertNil(ProgramScanner.relativePath(of: URL(fileURLWithPath: "/Applications/x.exe"), in: temp))
+
+        let programs = ProgramScanner.scan(driveC: temp, pinned: [pinned, "Games/Gone/missing.exe"])
+        XCTAssertEqual(programs.map(\.name), ["AT", "Steam"])
+        XCTAssertEqual(programs.map(\.isPinned), [true, false])
+    }
+
+    func testIdleBottleIsNotRunning() {
+        XCTAssertFalse(BottleStatus.isRunning(prefix: temp))
+        XCTAssertFalse(BottleStatus.isRunning(prefix: temp.appendingPathComponent("missing")))
+    }
+
     func testBottleWithoutEngineNameStillDecodes() throws {
         let json = #"{"created":0,"id":"E7DA844D-1A7A-4DB4-8C7B-12B3A15C545C","name":"Old","settings":{"advertiseAVX":false,"extraEnvironment":{},"metalHUD":false,"retinaMode":false,"syncMode":"msync"},"windowsVersion":"win11"}"#
         let bottle = try JSONDecoder().decode(Bottle.self, from: Data(json.utf8))
         XCTAssertNil(bottle.engineName)
+        XCTAssertNil(bottle.pinnedPrograms)
+
+        let older = #"{"created":0,"id":"E7DA844D-1A7A-4DB4-8C7B-12B3A15C545C","name":"Old","settings":{"syncMode":"esync"},"windowsVersion":"win11"}"#
+        let settings = try JSONDecoder().decode(Bottle.self, from: Data(older.utf8)).settings
+        XCTAssertEqual(settings.syncMode, .esync)
+        XCTAssertEqual(settings.graphics, .d3dMetal, "settings added later take their defaults")
     }
 
     func testBattleNetFixLinksExecutableIntoVersionFolders() throws {
