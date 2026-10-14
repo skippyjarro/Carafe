@@ -127,6 +127,9 @@ final class CarafeCoreTests: XCTestCase {
         XCTAssertEqual(env(.d3dMetal)["WINEDLLPATH_PREPEND"], d3dMetal + ":" + dxmt)
         XCTAssertEqual(env(.dxmt)["WINEDLLPATH_PREPEND"], dxmt)
         XCTAssertEqual(env(.d3dMetal)["WINE_SIMULATE_WRITECOPY"], "1")
+        XCTAssertEqual(
+            env(.d3dMetal)["WINE_CMDLINE_APPEND"],
+            "Battle.net.exe=--in-process-gpu --use-gl=swiftshader;steamwebhelper.exe=--no-sandbox --in-process-gpu --disable-gpu")
     }
 
     func testPinnedProgramsJoinTheScan() throws {

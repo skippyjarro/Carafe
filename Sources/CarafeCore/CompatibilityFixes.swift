@@ -2,6 +2,20 @@ import Foundation
 
 /// Per-application workarounds applied to a bottle's C: drive before anything launches in it.
 public enum CompatibilityFixes {
+    /// Options added to a program's command line whenever it starts, keyed by executable name.
+    /// Launchers built on Chromium can't draw through a separate GPU process on macOS; these make
+    /// them render in-process in software. CrossOver 24 carries the same table inside Wine, and
+    /// engines built with Carafe's patch (Scripts/engine/patches) read it from WINE_CMDLINE_APPEND.
+    public static let launchOptions = [
+        "Battle.net.exe": "--in-process-gpu --use-gl=swiftshader",
+        "steamwebhelper.exe": "--no-sandbox --in-process-gpu --disable-gpu",
+    ]
+
+    /// `launchOptions` in the form Wine reads: "program.exe=options;program.exe=options".
+    public static var launchOptionsVariable: String {
+        launchOptions.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ";")
+    }
+
     public static func apply(driveC: URL) {
         linkBattleNetExecutable(driveC: driveC)
     }

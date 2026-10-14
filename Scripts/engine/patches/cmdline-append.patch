@@ -1,0 +1,56 @@
+--- a/dlls/kernelbase/process.c
++++ b/dlls/kernelbase/process.c
+@@ -498,6 +498,39 @@
+     RtlFreeUnicodeString( &desktopW );
+     RtlFreeUnicodeString( &titleW );
+     return ret;
++}
++
++/* Carafe: add per-application options named in WINE_CMDLINE_APPEND, a list of
++ * "program.exe=options" entries separated by semicolons. Launchers built on Chromium
++ * need options such as --in-process-gpu to draw on macOS. Returns a new heap string,
++ * or NULL if the command line needs no change. */
++static WCHAR *append_cmdline_options( const WCHAR *app_name, const WCHAR *cmd_line )
++{
++    WCHAR list[2048], *entry, *next, *options, *ret;
++    const WCHAR *base, *p;
++    DWORD len = GetEnvironmentVariableW( L"WINE_CMDLINE_APPEND", list, ARRAY_SIZE(list) );
++
++    if (!len || len >= ARRAY_SIZE(list) || !app_name || !cmd_line) return NULL;
++    if (wcsstr( cmd_line, L"--type=crashpad-handler" )) return NULL;
++
++    base = app_name;
++    for (p = app_name; *p; p++) if (*p == '\\' || *p == '/') base = p + 1;
++
++    for (entry = list; entry && *entry; entry = next)
++    {
++        if ((next = wcschr( entry, ';' ))) *next++ = 0;
++        if (!(options = wcschr( entry, '=' ))) continue;
++        *options++ = 0;
++        if (wcsicmp( entry, base ) || !*options || wcsstr( cmd_line, options )) continue;
++        if (!(ret = RtlAllocateHeap( GetProcessHeap(), 0,
++                                     (lstrlenW(cmd_line) + lstrlenW(options) + 2) * sizeof(WCHAR) )))
++            return NULL;
++        lstrcpyW( ret, cmd_line );
++        lstrcatW( ret, L" " );
++        lstrcatW( ret, options );
++        return ret;
++    }
++    return NULL;
+ }
+ 
+ /**********************************************************************
+@@ -545,6 +578,13 @@
+         app_name = name;
+     }
+ 
++    /* Carafe: per-application command line options */
++    if ((p = append_cmdline_options( app_name, tidy_cmdline )))
++    {
++        if (tidy_cmdline != cmd_line) HeapFree( GetProcessHeap(), 0, tidy_cmdline );
++        tidy_cmdline = p;
++    }
++
+     /* CW Hack 24938 */
+     if (cmd_line && wcsstr(cmd_line, L"EpicGamesLauncher.exe"))
+     {

@@ -31,7 +31,11 @@ fetch() { # url sha256 file
 mkdir -p "$WORK" && cd "$WORK"
 fetch "$SOURCE_URL" "$SOURCE_SHA" cx.tar.gz
 fetch "$MONO_URL" "$MONO_SHA" mono.tar.xz
-[ -d sources/wine ] || tar -xzf cx.tar.gz sources/wine
+if [ ! -d sources/wine ]; then
+  tar -xzf cx.tar.gz sources/wine
+  # Carafe's changes to Wine itself: per-application launch options (WINE_CMDLINE_APPEND).
+  for patch in "$HERE"/patches/*.patch; do patch -d sources/wine -p1 < "$patch"; done
+fi
 
 # The donor's libraries are x86_64 and referenced by bare name, so the build links against them
 # through a space-free path and is told their names instead of letting configure guess.

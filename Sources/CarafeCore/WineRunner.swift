@@ -29,7 +29,10 @@ public enum WineEnvironment {
             }
             // Chromium-based launchers check that untouched program data is reported as copy-on-write;
             // without this their page renderer crashes at startup on Wine 11.
-            if engine.hasGraphicsPlugin { env["WINE_SIMULATE_WRITECOPY"] = "1" }
+            if engine.hasGraphicsPlugin {
+                env["WINE_SIMULATE_WRITECOPY"] = "1"
+                env["WINE_CMDLINE_APPEND"] = CompatibilityFixes.launchOptionsVariable
+            }
             if graphics == .d3dMetal, let d3dMetal = engine.d3dMetal {
                 let external = d3dMetal.appendingPathComponent("external")
                 libraries.append(external.path)
