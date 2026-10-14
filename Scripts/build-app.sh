@@ -43,7 +43,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 <dict>
     <key>CFBundleName</key><string>Carafe</string>
     <key>CFBundleDisplayName</key><string>Carafe</string>
-    <key>CFBundleIdentifier</key><string>local.carafe</string>
+    <key>CFBundleIdentifier</key><string>com.skippyjarro.carafe</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundleIconName</key><string>AppIcon</string>
     <key>CFBundleExecutable</key><string>Carafe</string>
