@@ -10,7 +10,6 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/Carafe "$APP/Contents/MacOS/Carafe"
 cp Scripts/install-wine.sh "$APP/Contents/Resources/install-wine.sh"
-Scripts/build-shim.sh "$APP/Contents/Resources/carafe-shim.dylib"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 
 # macOS 26 draws app icons (Dock, Stage Manager) from a compiled asset catalog named by CFBundleIconName;

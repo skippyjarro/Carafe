@@ -141,7 +141,7 @@ struct SetupView: View {
                 .foregroundStyle(.secondary)
             Text("Wine Is Not Installed")
                 .font(.title2.bold())
-            Text("Carafe runs Windows programs through Wine. Install downloads a CrossOver-based Wine build plus Apple's D3DMetal and other graphics layers (about 255 MB) from the Sikarugir-App GitHub releases into Carafe's Application Support folder.")
+            Text("Carafe runs Windows programs through Wine. Install downloads two CrossOver-based Wine engines with Apple's D3DMetal and other graphics layers (about 625 MB) from Carafe's GitHub releases into Carafe's Application Support folder.")
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: 460)
