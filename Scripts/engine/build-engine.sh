@@ -2,8 +2,10 @@
 # Builds Carafe's "CrossOver 26.3.0" engine: Wine 11 compiled from the source CodeWeavers publishes
 # for CrossOver, plus the libraries and graphics layers of an already-installed Carafe engine.
 #
-# Needs: Xcode, Rosetta, and `brew install mingw-w64 bison` (plus Homebrew's freetype, gnutls and
-# sdl2 for their headers). Takes roughly 20 minutes and 6 GB of scratch space on an M1 Pro.
+# Needs: Xcode, Rosetta, `brew install bison` (plus Homebrew's freetype, gnutls and sdl2 for their
+# headers), and the GCC 13 MinGW toolchain from build-toolchain.sh. Diablo IV's anti-tamper rejects
+# Wine DLLs compiled by newer GCC, so Homebrew's mingw-w64 can't be used. Takes roughly 20 minutes
+# and 6 GB of scratch space on an M1 Pro.
 set -euo pipefail
 
 VERSION="26.3.0"
@@ -19,6 +21,8 @@ DONOR="$ENGINES/CrossOver 24.0.7"   # supplies Frameworks (dylibs, D3DMetal, DXM
 DEST="$ENGINES/CrossOver $VERSION"
 WORK="${CARAFE_ENGINE_WORK:-$HOME/Library/Caches/CarafeEngineBuild}"
 BREW="$(brew --prefix)"
+MINGW="${CARAFE_MINGW:-$HOME/Library/Caches/CarafeMingw13}/prefix"
+[ -x "$MINGW/bin/x86_64-w64-mingw32-gcc" ] || { echo "Build the MinGW toolchain first: $HERE/build-toolchain.sh" >&2; exit 1; }
 
 [ -d "$DONOR/Frameworks" ] || { echo "Install the CrossOver 24.0.7 engine first (Scripts/install-wine.sh)." >&2; exit 1; }
 [ ! -e "$DEST" ] || { echo "$DEST already exists; remove it to rebuild." >&2; exit 1; }
@@ -42,7 +46,7 @@ fi
 ln -sfn "$DONOR/Frameworks" fw
 FW="$WORK/fw"
 mkdir -p build && cd build
-export PATH="$BREW/opt/bison/bin:$PATH"
+export PATH="$MINGW/bin:$BREW/opt/bison/bin:$PATH"
 
 arch -x86_64 ../sources/wine/configure --prefix=/opt/carafe-wine --enable-archs=i386,x86_64 --disable-tests \
   --without-x --without-gstreamer --without-ffmpeg --without-pulse --without-alsa --without-dbus \
@@ -57,7 +61,9 @@ arch -x86_64 ../sources/wine/configure --prefix=/opt/carafe-wine --enable-archs=
   ac_cv_lib_soname_SDL2=libSDL2-2.0.0.dylib ac_cv_lib_soname_MoltenVK=libMoltenVK.dylib
 
 # The font tool runs during the build and must find FreeType and its dependencies; macOS strips
-# DYLD_* variables from make, so it gets a search path baked in instead.
+# DYLD_* variables from make, so it gets a search path baked in instead, and FreeType (which the
+# donor references by bare name) is linked into the build folder where dyld also looks.
+for lib in "$FW"/*.dylib; do ln -sf "$lib" .; done
 arch -x86_64 make -j"$(sysctl -n hw.ncpu)" tools/sfnt2fon/sfnt2fon.o
 arch -x86_64 clang -arch x86_64 -m64 -o tools/sfnt2fon/sfnt2fon tools/sfnt2fon/sfnt2fon.o \
   -L"$FW" -lfreetype -Wl,-rpath,"$FW"
