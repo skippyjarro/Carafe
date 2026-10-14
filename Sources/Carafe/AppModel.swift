@@ -92,8 +92,8 @@ final class AppModel {
 
     // MARK: Bottles
 
-    func createBottle(name: String, version: WindowsVersion) async {
-        let bottle = Bottle(name: name, windowsVersion: version, engineName: engine?.name)
+    func createBottle(name: String, version: WindowsVersion, engineName: String? = nil) async {
+        let bottle = Bottle(name: name, windowsVersion: version, engineName: engineName ?? engine?.name)
         await perform(on: bottle) { runner in
             try self.repository.save(bottle)
             self.bottles.append(bottle)

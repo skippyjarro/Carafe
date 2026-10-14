@@ -84,6 +84,7 @@ struct NewBottleSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
     @State private var version = WindowsVersion.win10
+    @State private var engineName = ""
 
     private var trimmedName: String { name.trimmingCharacters(in: .whitespaces) }
 
@@ -93,9 +94,19 @@ struct NewBottleSheet: View {
             Picker("Windows Version", selection: $version) {
                 ForEach(WindowsVersion.allCases) { Text($0.displayName).tag($0) }
             }
+            if model.engines.count > 1 {
+                Picker(selection: $engineName) {
+                    ForEach(model.engines, id: \.name) { Text($0.name).tag($0.name) }
+                } label: {
+                    SettingLabel(
+                        title: "Wine Engine",
+                        info: "The version of Wine that runs this bottle's programs. Newer engines support more recent games and launchers; an older one is worth trying if something that used to work stops working. A bottle stays on the engine it was created with.")
+                }
+            }
         }
         .formStyle(.grouped)
         .frame(width: 380)
+        .onAppear { engineName = model.engine?.name ?? "" }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Cancel") { dismiss() }
@@ -103,7 +114,7 @@ struct NewBottleSheet: View {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Create") {
                     let name = trimmedName
-                    Task { await model.createBottle(name: name, version: version) }
+                    Task { await model.createBottle(name: name, version: version, engineName: engineName) }
                     dismiss()
                 }
                 .disabled(trimmedName.isEmpty)
