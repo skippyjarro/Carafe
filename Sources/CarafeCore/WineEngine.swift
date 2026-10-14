@@ -33,6 +33,13 @@ public struct WineEngine: Hashable, Sendable {
         return dir
     }
 
+    /// True for engines built from CodeWeavers' source with Carafe's plugin (Scripts/engine/cxcompatdb.c),
+    /// which accepts a list of graphics-layer folders rather than a single one.
+    public var hasGraphicsPlugin: Bool {
+        FileManager.default.fileExists(
+            atPath: binDirectory.appendingPathComponent("../lib/wine/x86_64-unix/cxcompatdb.so").standardizedFileURL.path)
+    }
+
     /// Folder of replacement DirectX libraries for a graphics layer, or nil if this engine doesn't ship it.
     public func renderer(_ backend: GraphicsBackend) -> URL? {
         switch backend {

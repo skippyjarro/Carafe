@@ -101,6 +101,32 @@ final class CarafeCoreTests: XCTestCase {
         XCTAssertNil(env(.dxmt)["CX_APPLEGPTK_LIBD3DSHARED_PATH"])
         XCTAssertNil(env(.dxvk)["WINEDLLPATH_PREPEND"], "a missing layer falls back to Wine's own")
         XCTAssertNil(env(.wined3d)["WINEDLLPATH_PREPEND"])
+        XCTAssertNil(env(.d3dMetal)["WINE_SIMULATE_WRITECOPY"], "only engines with Carafe's plugin")
+    }
+
+    func testPluginEngineGetsThirtyTwoBitFallbackAndWriteCopy() throws {
+        try touch("E/wine/bin/wine")
+        try touch("E/wine/lib/wine/x86_64-unix/cxcompatdb.so")
+        try touch("E/Frameworks/renderer/d3dmetal/external/D3DMetal.framework/D3DMetal")
+        try touch("E/Frameworks/renderer/d3dmetal/wine/x86_64-windows/d3d11.dll")
+        try touch("E/Frameworks/renderer/dxmt/wine/i386-windows/d3d11.dll")
+        let root = temp.appendingPathComponent("E")
+        let engine = WineEngine(
+            name: "Plugin", binDirectory: root.appendingPathComponent("wine/bin"),
+            wine: root.appendingPathComponent("wine/bin/wine"), support: root.appendingPathComponent("Frameworks"))
+        XCTAssertTrue(engine.hasGraphicsPlugin)
+
+        func env(_ graphics: GraphicsBackend) -> [String: String] {
+            var bottle = Bottle(name: "Games")
+            bottle.settings.graphics = graphics
+            return WineEnvironment.build(bottle: bottle, prefix: URL(fileURLWithPath: "/p"), engine: engine, base: [:])
+        }
+        let renderers = root.appendingPathComponent("Frameworks/renderer")
+        let d3dMetal = renderers.appendingPathComponent("d3dmetal/wine").path
+        let dxmt = renderers.appendingPathComponent("dxmt/wine").path
+        XCTAssertEqual(env(.d3dMetal)["WINEDLLPATH_PREPEND"], d3dMetal + ":" + dxmt)
+        XCTAssertEqual(env(.dxmt)["WINEDLLPATH_PREPEND"], dxmt)
+        XCTAssertEqual(env(.d3dMetal)["WINE_SIMULATE_WRITECOPY"], "1")
     }
 
     func testPinnedProgramsJoinTheScan() throws {

@@ -19,8 +19,17 @@ public enum WineEnvironment {
             let graphics = bottle.settings.graphics
             // The chosen layer's DirectX libraries are searched ahead of Wine's own.
             if let renderer = engine.renderer(graphics) {
-                env["WINEDLLPATH_PREPEND"] = renderer.path
+                var layers = [renderer.path]
+                // D3DMetal is 64-bit only. On Wine 11, 32-bit programs such as the Battle.net launcher
+                // would otherwise fall to Wine's OpenGL renderer, which floods the log with errors.
+                if graphics == .d3dMetal, engine.hasGraphicsPlugin, let fallback = engine.renderer(.dxmt) {
+                    layers.append(fallback.path)
+                }
+                env["WINEDLLPATH_PREPEND"] = layers.joined(separator: ":")
             }
+            // Chromium-based launchers check that untouched program data is reported as copy-on-write;
+            // without this their page renderer crashes at startup on Wine 11.
+            if engine.hasGraphicsPlugin { env["WINE_SIMULATE_WRITECOPY"] = "1" }
             if graphics == .d3dMetal, let d3dMetal = engine.d3dMetal {
                 let external = d3dMetal.appendingPathComponent("external")
                 libraries.append(external.path)
