@@ -5,6 +5,14 @@ import SwiftUI
 struct CarafeApp: App {
     @State private var model = AppModel()
 
+    init() {
+        // The Dock and Stage Manager draw the running app's icon from here, so setting it explicitly
+        // keeps them right even when macOS's cached icon for this bundle is stale.
+        if let icon = NSImage(named: "AppIcon") {
+            NSApplication.shared.applicationIconImage = icon
+        }
+    }
+
     var body: some Scene {
         WindowGroup("Carafe") {
             ContentView()
